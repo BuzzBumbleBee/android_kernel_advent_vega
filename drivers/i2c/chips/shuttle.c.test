@@ -1,0 +1,448 @@
+/*======================================================================
+    A kernel module: usb_cam_switch.c                                              
+    This module uses proc fs to let user turn on or of usb camera                         
+    <antliao@gmail.com>. All Rights Reserved.                       
+======================================================================*/
+
+#include <linux/kernel.h>                    
+#include <linux/module.h>                    
+#include <linux/types.h>                     
+#include <linux/fs.h>                     
+#include <linux/errno.h>                     
+#include <linux/mm.h>                     
+#include <linux/sched.h>                     
+#include <linux/init.h>                     
+#include <linux/cdev.h>                     
+#include <asm/io.h>                     
+#include <asm/system.h>                     
+#include <asm/uaccess.h> 
+#include <linux/proc_fs.h>
+#include <linux/gpio.h>
+
+#include <linux/timer.h>
+#include <linux/input.h>
+#include <linux/delay.h>
+
+#define MOD_NAME	"[Shuttle-GPIO]"
+#define SHUTTLE_DEBUG	0
+
+#ifdef SHUTTLE_DEBUG
+#define DEBUG( fmt, args... ) { \
+        printk( MOD_NAME "%s():%d - ", __FUNCTION__, __LINE__); printk( fmt, ## args); \
+	}
+#else
+#define DEBUG( fmt, args...) { \
+        do {} while( 0 ); }
+#endif
+
+#define MAX_LEN		16
+#define MAX_GPIO_PIN	223
+#define PROC_ENT1	"gpio"
+#define PROC_ENT2	"s3"
+
+#define GPIO_GET	0
+#define GPIO_SET_INPUT	1
+#define GPIO_SET	2
+#define GPIO_SET_OUTPUT	3
+#define GPIO_SET_ALL	4
+
+static struct proc_dir_entry *proc_entry1 ;
+static struct proc_dir_entry *proc_entry2 ;
+static int gpio = -1;
+
+
+#define KEY_VU 115 // KEY_VOLUME_UP
+#define KEY_VD 114 // KEY_VOLUME_DOWN
+#define KEY_PW 116 // KEY_POWER
+#define KEY_BK 158 // KEY_BACK
+#define KEY_F4 62 // KEY_F4
+#define SHUTTLE_D1 HZ/10*4  // 0.4 second
+#define SHUTTLE_D2 HZ/10*2  // 0.2 second
+//#define SHUTTLE_D3 HZ  // 1 second
+
+static struct input_dev *button_dev ;
+static struct timer_list shuttle_timer1 ;  // for volume key
+static struct timer_list shuttle_timer2 ;  // for press power key 2 second
+static int gpio_num[4] ;
+
+static irqreturn_t menu_key(int irq, void *dummy)
+{
+
+	return IRQ_HANDLED ;
+}
+
+static void emit_keycode(int key_code)
+{
+	input_report_key(button_dev, key_code, 1) ;
+	input_sync(button_dev) ;
+	input_report_key(button_dev, key_code, 0) ;
+	input_sync(button_dev) ;
+}
+
+/* 
+ *  Read by user
+ */
+ssize_t
+ucs_proc_read(char *page, char **start, off_t off, int count,
+  int*eof, void *data)
+{
+	int len ;
+	int i;
+	int retval;
+
+	// don't allow the user to read using offset
+	if (off > 0)
+	{
+		*eof = 1;
+		return 0;
+	}
+
+	// get one GPIO pin
+	if( 0 <= gpio && gpio <= MAX_GPIO_PIN ) {
+
+		retval = gpio_get_value( gpio );
+		len = sprintf(page, "%d-%d", gpio, retval);
+		gpio = -1;
+
+		return len;
+	}
+
+	// get all GPIO pin
+	len = sprintf(page, "  ");
+	for( i=0; i<20;) {
+		len += sprintf(page+len, "%d", (i++)%10);
+		if( i % 5 == 0 )
+			len += sprintf(page+len, " ");
+	}
+	len += sprintf(page+len, "\n0:");
+
+	for( i=1; i<MAX_GPIO_PIN+1; ++i) {
+
+		retval = gpio_get_value(i-1);
+		len += sprintf(page+len, "%d", retval);
+		if( i % 20 == 0 )
+			len += sprintf(page+len, "\n%d:", ((int)(i/10))%10);
+		else if( i % 5 == 0 )
+			len += sprintf(page+len, " ");
+	}
+
+	return len;
+}
+
+/* 
+ *  Write by the user
+ */
+ssize_t
+ucs_proc_write(struct file *filp, const char __user *buff,
+  unsigned long len, void *data)
+{
+	char k_buf[MAX_LEN] = "\0";
+	int count = min(MAX_LEN, (int)len) ;
+	int offset;
+
+	int action;
+	int val;
+
+	int retval ;
+
+	if(copy_from_user( k_buf, buff, count))
+	{
+		printk(KERN_ERR MOD_NAME "Some Data Copy failed!\n");
+		goto ERROR;
+	} else {
+
+		// Protocol:
+		//	1) get + NUMBER; 2) seti + NUMBER; 3) set + NUMBER + {h/l}
+		//	4) seto + NUMBER + {h/l}; 5) seta + {h/l}
+		DEBUG("====== [%s] ======\n", k_buf);
+
+		if( strncmp( k_buf, "get", 3) == 0 ) {
+			offset = 3;
+			action = GPIO_GET;
+			goto GPIO_NUM;
+		}
+		else if( strncmp( k_buf, "set", 3) == 0 )
+			offset = 3;
+		else
+			goto ERROR;
+
+		if( offset < count && '0'<=k_buf[offset] && k_buf[offset]<='9' )
+			action = GPIO_SET;
+		else {
+
+			if( 'i' == k_buf[offset] )
+				action = GPIO_SET_INPUT;
+			else if( 'o' == k_buf[offset] )
+				action = GPIO_SET_OUTPUT;
+			else if( 'a' == k_buf[offset] )
+				action = GPIO_SET_ALL;
+			else
+				goto ERROR;
+
+			++offset;
+		}
+
+GPIO_NUM:
+		gpio = 0;
+		for(; offset < count && '0'<=k_buf[offset] && k_buf[offset]<='9'; ++offset)
+			gpio = gpio*10 + k_buf[offset]-'0';
+
+		if( gpio < 0 || gpio > MAX_GPIO_PIN )
+			goto ERROR;
+
+		val = 0;
+		if( action > GPIO_SET_INPUT ) {
+			if( offset < count ) {
+				switch( k_buf[offset] ) {
+					case 'h':
+						val = 1;
+						break;
+					case 'l':
+						val = 0;
+						break;
+					default:
+						goto ERROR;
+				}
+			}
+			else
+				goto ERROR;
+		}
+
+		switch( action ) {
+			// ex: get20 ==> get GPIO Pin 20
+			case GPIO_GET:
+				DEBUG("gpio_get_value(%d)\n",gpio);
+				break;
+
+			// ex: seti20 ==> set GPIO Pin 20 to be input
+			case GPIO_SET_INPUT:
+				DEBUG("gpio_direction_input(%d)\n",gpio);
+				gpio_direction_input(gpio);
+				break;
+
+			// ex: set20h ==> set GPIO Pin 20 to be high
+			case GPIO_SET:
+				DEBUG("gpio_set_value(%d,%d)\n",gpio,val);
+				gpio_set_value( gpio, val);
+				break;
+
+			// ex: seto20h ==> set GPIO Pin 20 to be output and high
+			case GPIO_SET_OUTPUT:
+				DEBUG("gpio_direction_output(%d,%d)\n",gpio,val);
+				gpio_direction_output( gpio, val);
+				break;
+
+			// ex: setah ==> set all GPIO Pin to be high
+			case GPIO_SET_ALL:
+				DEBUG("(all)gpio_set_value(%d)\n",val);
+				for( gpio=0; gpio<=MAX_GPIO_PIN; ++gpio)
+					gpio_set_value( gpio, val);
+				break;
+			default:
+				goto ERROR;
+		}
+		retval = count;
+		goto END;
+	}
+
+ERROR:
+	printk(KERN_ERR MOD_NAME "ERROR for GPIO access!\n");
+	retval = - EFAULT;
+
+END:
+	return retval;
+}
+
+/* 
+ *  Write by the user to enter S3 mode
+ */
+ssize_t
+s3_proc_write(struct file *filp, const char __user *buff,
+  unsigned long len, void *data)
+{
+	emit_keycode(KEY_F4) ;
+	return 1 ;
+}
+
+// GPIO_PAA7 -- low means not S3
+//           -- high means S3
+// according to .../kernel/arch/arm/mach-tegra/gpio-names.h
+// The number of GPIO_PAA7 is 215
+// GPIO 28 is to control USB camera
+static void init_gpio_status(void)
+{
+	gpio_request(215, "Shuttle_S3flag") ;
+	gpio_direction_output(215, 0) ;
+	printk(KERN_INFO "Ant shuttle module init set GPIO_PAA7 to low\n") ;
+
+	gpio_request(28, "Shuttle_USBCamera") ;
+	gpio_direction_output( 28, 0);
+	printk(KERN_INFO "Ant shuttle module init set GPIO 28 to low\n") ;
+
+	// Kenny's request
+	gpio_request(27, "Shuttle_throttling") ;
+	gpio_direction_input( 27 );
+}
+
+// GPIO_PB1 -- Volup -- 9
+// GPIO_PK7 -- Voldown -- 87 
+// GPIO_PV2 -- Key_power -- 170
+// GPIO_PH0 -- Key_back-- 56
+static void init_shuttle_gpio_key(void)
+{
+	gpio_num[0] = 9 ;
+	gpio_num[1] = 87 ;
+	gpio_num[2] = 170;
+	gpio_num[3] = 56 ;
+}
+
+static void init_input_dev(void)
+{
+	int error ;
+
+	button_dev = input_allocate_device();
+	if (!button_dev) {
+		printk(KERN_ERR "Ant -- Can't allocate input device\n");
+		error = -ENOMEM;
+		return ;
+	}
+
+	set_bit(EV_KEY,button_dev->evbit) ;
+	set_bit(KEY_VU,button_dev->keybit) ;
+	set_bit(KEY_VD,button_dev->keybit) ;
+	set_bit(KEY_PW,button_dev->keybit) ;
+	set_bit(KEY_BK,button_dev->keybit) ;
+	set_bit(KEY_F4,button_dev->keybit) ;
+	error = input_register_device(button_dev) ;
+	if (error) {
+		printk(KERN_ERR "Ant: Failed to register input device\n");
+	}
+}
+
+static void timer2_handle(void)
+{
+	int v = -1 ;
+	static int count = 0 ;
+	static int prev_status = 0 ;
+
+	gpio_request(gpio_num[2], "Shuttle_power") ;
+	gpio_direction_input(gpio_num[2]) ;
+	v = gpio_get_value(gpio_num[2]) ;
+
+	if( v == 0 )
+	{
+		printk(KERN_INFO "Ant shuttle module -- PV2 is low\n") ;
+		if(prev_status == 1)
+		{
+			count++ ;
+			if(count == 10)
+			{
+				printk(KERN_INFO "Ant shuttle module -- emit KEY_POWER\n") ;
+				emit_keycode(KEY_PW) ;
+				count = 0 ;
+				prev_status = 0 ;
+			} 
+		} else {
+			prev_status = 1 ;
+		}
+	}  else {
+		//printk(KERN_INFO "Ant shuttle module -- PV2 is high\n") ;
+		prev_status = 0 ;
+		count = 0 ;
+	}
+	mod_timer(&shuttle_timer2, jiffies + SHUTTLE_D2) ;
+}
+
+static void timer1_handle(void)
+{
+	int i = 0 ;
+	int v = -1 ;
+	int key_code = 0 ;
+
+	//	gpio_direction_input(gpio_num[i]) ;
+	//	v = gpio_get_value(gpio_num[i]) ;
+	//	if( v == 0 )
+	//	{
+	//		printk(KERN_INFO "Ant shuttle module -- set key_code to %d\n",
+	//		  key_code) ;
+	//		emit_keycode(key_code) ;
+	//	}
+	//}
+	gpio_request(gpio_num[3], "Shuttle_back") ;
+	gpio_direction_input(gpio_num[3]) ;
+	v = gpio_get_value(gpio_num[3]) ;
+	if( v == 0 )
+	{
+		key_code =  KEY_BK ;
+		printk(KERN_INFO "Ant shuttle module -- set key_code to %d\n",
+		  key_code) ;
+		emit_keycode(key_code) ;
+	}
+	mod_timer(&shuttle_timer1, jiffies + SHUTTLE_D2) ;
+}
+
+static void init_shuttle_timer(void)
+{
+	init_timer(&shuttle_timer1) ;
+	shuttle_timer1.function = &timer1_handle;
+	shuttle_timer1.expires = jiffies ;
+	add_timer(&shuttle_timer1) ;
+
+	//init_timer(&shuttle_timer2) ;
+	//shuttle_timer2.function = &timer2_handle ;
+	//shuttle_timer2.expires = jiffies + SHUTTLE_D2 ;
+	//add_timer(&shuttle_timer2) ;
+}
+
+static void init_shuttle_proc(void)
+{
+	// create gpio proc entry
+	proc_entry1 = create_proc_entry(PROC_ENT1, 0666, NULL) ;
+	if (proc_entry1 == NULL)
+	{
+		printk(KERN_ERR MOD_NAME "Shuttle module: Couldn't create proc entry: %s\n", PROC_ENT1) ;
+	} else {
+		proc_entry1->read_proc = ucs_proc_read ;
+		proc_entry1->write_proc = ucs_proc_write ;
+	//	proc_entry->owner = THIS_MODULE ;
+	}
+
+	// create s3 proc entry
+	proc_entry2 = create_proc_entry(PROC_ENT2, 0666, NULL) ;
+	if (proc_entry2 == NULL)
+	{
+		printk(KERN_ERR MOD_NAME "Shuttle module: Couldn't create proc entry: %s\n", PROC_ENT2) ;
+	} else {
+	//	proc_entry->read_proc = ucs_proc_read ;
+		proc_entry2->write_proc = s3_proc_write ;
+	//	proc_entry->owner = THIS_MODULE ;
+	}
+}
+
+static int __init shuttle_gpio_init(void)
+{
+
+	init_shuttle_proc() ;
+	init_input_dev() ;
+	init_gpio_status() ;
+	init_shuttle_gpio_key() ;
+	init_shuttle_timer() ;
+
+	printk(KERN_INFO MOD_NAME "Module Init: Shuttle module\n");
+	return 0;
+}
+
+static void __exit shuttle_gpio_exit(void)
+{
+	remove_proc_entry(PROC_ENT1, proc_entry1->parent) ; 
+	remove_proc_entry(PROC_ENT2, proc_entry2->parent) ; 
+	printk(KERN_INFO MOD_NAME "Module Exit: Shuttle GPIO Switch\n");
+	input_unregister_device(button_dev) ;
+}
+
+module_init(shuttle_gpio_init);
+module_exit(shuttle_gpio_exit);
+
+MODULE_AUTHOR("Ant_Liao, antliao@gmail.com; Cheney_Ni, cheney_ni@tw.shuttle.com");
+MODULE_VERSION("V0.8");
+
