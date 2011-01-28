@@ -671,7 +671,7 @@ static void init_gpio_status(void)
 
     //high is (host mode) --- TV_ON(GPIO_PB0 8)
 	gpio_request(8, "USB0") ;
-	gpio_direction_output( 8, 1);
+	gpio_direction_output( 8, 0);
 	printk(KERN_INFO "Ant shuttle module init set GPIO 8 to high (host mode)\n") ;
 
 }
