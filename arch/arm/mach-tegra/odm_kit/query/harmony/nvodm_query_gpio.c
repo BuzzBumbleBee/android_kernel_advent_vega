@@ -162,8 +162,8 @@ static const NvOdmGpioPinInfo s_WakeFromKeyBoard[] = {
 static const NvOdmGpioPinKeyInfo s_GpioPinKeyInfo[] = {
     {KEY_BACK, 10, NV_TRUE},
     {KEY_F3, 10, NV_TRUE},
-    //{KEY_F4, 10, NV_TRUE},
-    {KEY_HOME, 10, NV_TRUE},
+    {KEY_F4, 10, NV_TRUE},
+    //{KEY_HOME, 10, NV_TRUE},
     {KEY_VOLUMEUP, 10, NV_TRUE},
     {KEY_VOLUMEDOWN, 10, NV_TRUE},
     {KEY_POWER, 1000, NV_TRUE},
