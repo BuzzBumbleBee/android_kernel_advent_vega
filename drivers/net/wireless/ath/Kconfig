@@ -20,3 +20,11 @@ source "drivers/net/wireless/ath/ath5k/Kconfig"
 source "drivers/net/wireless/ath/ath9k/Kconfig"
 source "drivers/net/wireless/ath/ar9170/Kconfig"
 endif
+
+menuconfig ATH6K
+	tristate "Atheros 6k"
+	---help---
+	  This will enable the support for the Atheros wireless drivers.
+	  ath5k, ath9k and ar9170 drivers share some common code, this option
+	  enables the common ath.ko module which shares common helpers.
+
