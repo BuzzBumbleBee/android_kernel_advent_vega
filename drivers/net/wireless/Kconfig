@@ -478,9 +478,6 @@ config MWL8K
 
 config AR6K_FORCE_DOWN
 	bool "Disable Force PWR Down"
-	---help--
-	disable ar6k device from unloading module and powering down, leaves
-	it to the OS when to disable and connect
 
 source "drivers/net/wireless/p54/Kconfig"
 source "drivers/net/wireless/ath/Kconfig"
