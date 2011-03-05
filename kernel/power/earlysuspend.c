@@ -106,13 +106,18 @@ static void early_suspend(struct work_struct *work)
 
 	//Fix To Pwr Up/Down Camera When Sleeping 
 	gpio_set_value(28, 0) ;
+	printk(KERN_INFO "Ant: Camera GPIO going down ! (Bumble-Bee)\n") ;
 
+#ifndef CONFIG_ANT_S3_DISABLE
 	// Ant start
 	// set GPIO_PAA7 to high and EC will know the status is S3
 	gpio_direction_output(215, 1) ;
 	gpio_set_value(215, 1) ;
 	printk(KERN_INFO "Ant: suspend set GPAA7 to 1\n") ;
 	// Ant end
+#else
+	printk(KERN_INFO "Ant: S3 Disabled (Bumble-Bee)\n") ;
+#endif
 
 	sys_sync();
 abort:
@@ -152,7 +157,9 @@ static void late_resume(struct work_struct *work)
 
 	//Fix To Pwr Up/Down Camera When Sleeping 
 	gpio_set_value(28, 1) ;
+	printk(KERN_INFO "Ant: Camera GPIO going up ! (Bumble-Bee)\n") ;
 
+#ifndef CONFIG_ANT_S3_DISABLE
 	// Ant start
 	// set GPIO_PAA7 to low and EC will know the status is S5
 	gpio_direction_output(215, 0) ;
@@ -166,6 +173,9 @@ static void late_resume(struct work_struct *work)
 	//gpio_direction_input(14) ;
 	//printk(KERN_INFO "Ant: resume TP\n") ;
 	// Ant end
+#else
+	printk(KERN_INFO "Ant: S3 Disabled (Bumble-Bee)\n") ;
+#endif
 
 abort:
 	mutex_unlock(&early_suspend_lock);

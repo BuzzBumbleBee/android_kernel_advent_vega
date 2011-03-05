@@ -186,6 +186,12 @@ choice
 		  to the screen and notifies user-space when it should resume.
 endchoice
 
+config ANT_S3_DISABLE
+	bool "Disables S3 mode on advent Vega"
+	depends on HAS_EARLYSUSPEND
+	---help---
+	Disables S3 on the advent vega this stops AOSP roms failing to wake
+
 config HIBERNATION
 	bool "Hibernation (aka 'suspend to disk')"
 	depends on PM && SWAP && ARCH_HIBERNATION_POSSIBLE
