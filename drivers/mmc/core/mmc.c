@@ -20,6 +20,9 @@
 #include "bus.h"
 #include "mmc_ops.h"
 
+#define SZ_256K                         0x00040000
+
+
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
