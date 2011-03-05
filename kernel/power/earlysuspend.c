@@ -104,6 +104,9 @@ static void early_suspend(struct work_struct *work)
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("early_suspend: sync\n");
 
+	//Fix To Pwr Up/Down Camera When Sleeping 
+	gpio_set_value(28, 0) ;
+
 	// Ant start
 	// set GPIO_PAA7 to high and EC will know the status is S3
 	gpio_direction_output(215, 1) ;
@@ -146,6 +149,9 @@ static void late_resume(struct work_struct *work)
 			pos->resume(pos);
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("late_resume: done\n");
+
+	//Fix To Pwr Up/Down Camera When Sleeping 
+	gpio_set_value(28, 1) ;
 
 	// Ant start
 	// set GPIO_PAA7 to low and EC will know the status is S5
