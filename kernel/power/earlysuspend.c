@@ -176,6 +176,8 @@ static void late_resume(struct work_struct *work)
 	//printk(KERN_INFO "Ant: resume TP\n") ;
 	// Ant end
 #else
+	gpio_direction_output(215, 0) ;
+	gpio_set_value(215, 0) ;
 	printk(KERN_INFO "Ant: S3 Disabled (Bumble-Bee)\n") ;
 #endif
 
