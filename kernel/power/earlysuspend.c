@@ -105,7 +105,6 @@ static void early_suspend(struct work_struct *work)
 		pr_info("early_suspend: sync\n");
 
 	//Fix To Pwr Up/Down Camera When Sleeping 
-	gpio_direction_output( 28, 0);
 	gpio_set_value(28, 0) ;
 	printk(KERN_INFO "Ant: Camera GPIO going down ! (Bumble-Bee)\n") ;
 
@@ -157,7 +156,6 @@ static void late_resume(struct work_struct *work)
 		pr_info("late_resume: done\n");
 
 	//Fix To Pwr Up/Down Camera When Sleeping 
-	gpio_direction_output( 28, 1);
 	gpio_set_value(28, 1) ;
 	printk(KERN_INFO "Ant: Camera GPIO going up ! (Bumble-Bee)\n") ;
 
