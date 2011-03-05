@@ -109,6 +109,7 @@ static int shuttle_gsensor_mode ;
 static int prev_x ;
 static int prev_y ;
 static int prev_z ;
+static int temp1 ;
 // Ant end
 
 #define BMA150_IOC_MAGIC 'B'
@@ -287,6 +288,12 @@ int bma150_get(short* data)
 	smb380_get_range(&range);
 	smb380_read_accel_xyz(&acc);
 
+#ifdef CONFIG_BMA_150_XY_FLIP
+	temp1 = (acc.x * -1) ; 
+	acc.x = acc.y;
+	acc.y = temp1;
+#endif
+
 	data[0] = Convert(range,acc.x);
 	data[1] = Convert(range,acc.y);
 	data[2] = Convert(range,acc.z);
@@ -345,6 +352,12 @@ static ssize_t bma150_read(struct file *file, char __user *buf, size_t count, lo
 	// Ant -- end
 
 	smb380_read_accel_xyz(&acc);
+
+#ifdef CONFIG_BMA_150_XY_FLIP
+	temp1 = (acc.x * -1) ; 
+	acc.x = acc.y;
+	acc.y = temp1;
+#endif
 
 	// Ant start -- change x, y, z for default(0) or game mode(1)
 	if (shuttle_gsensor_mode == 1)

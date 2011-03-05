@@ -43,4 +43,10 @@ config BOSCH_BMA150
      If you say yes here you get support for Bosch Sensortec's 
      acceleration sensors SMB380/BMA150.
 
+config BMA_150_XY_FLIP
+   bool "FLIP x y axis on BMA150"
+   depends on BOSCH_BMA150
+   help
+     Flip X Y 
+
 endmenu
