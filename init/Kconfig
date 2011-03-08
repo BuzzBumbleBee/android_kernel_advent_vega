@@ -106,6 +106,10 @@ config LOCALVERSION_AUTO
 
 	  which is done within the script "scripts/setlocalversion".)
 
+config USB_HOST_MODE
+	bool "Enable USB host mode at build time"
+	default n
+
 config HAVE_KERNEL_GZIP
 	bool
 

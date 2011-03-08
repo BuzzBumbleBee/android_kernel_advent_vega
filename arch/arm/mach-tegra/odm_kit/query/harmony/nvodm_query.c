@@ -724,8 +724,11 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         (NvOdmUsbChargerType_SE0 | NvOdmUsbChargerType_SE1 | NvOdmUsbChargerType_SK),
         20,
         NV_TRUE,
+#ifndef CONFIG_USB_HOST_MODE
         NvOdmUsbModeType_Device,
-	    //NvOdmUsbModeType_Host,
+#else
+	NvOdmUsbModeType_Host,
+#endif
         NvOdmUsbIdPinType_CableId,
         NvOdmUsbConnectorsMuxType_None,
         NV_TRUE
