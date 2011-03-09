@@ -49,6 +49,7 @@
 #include "nvodm_keylist_reserved.h"
 #include "nvrm_drf.h"
 #include <linux/kernel.h>
+#include <linux/gpio.h>
 
 #if !defined(NV_OAL)
 #define NV_OAL (0)
@@ -718,21 +719,33 @@ const NvOdmUsbProperty*
 NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
                          NvU32 Instance)
 {
-    static const NvOdmUsbProperty Usb1Property =
+    int HostMode = 0;
+    static const NvOdmUsbProperty Usb1PropertySlave =
     {
         NvOdmUsbInterfaceType_Utmi,
         (NvOdmUsbChargerType_SE0 | NvOdmUsbChargerType_SE1 | NvOdmUsbChargerType_SK),
         20,
         NV_TRUE,
-#ifndef CONFIG_USB_HOST_MODE
         NvOdmUsbModeType_Device,
-#else
-	NvOdmUsbModeType_Host,
-#endif
+
         NvOdmUsbIdPinType_CableId,
         NvOdmUsbConnectorsMuxType_None,
         NV_TRUE
     };
+
+    static const NvOdmUsbProperty Usb1PropertyHost =
+    {
+        NvOdmUsbInterfaceType_Utmi,
+        (NvOdmUsbChargerType_SE0 | NvOdmUsbChargerType_SE1 | NvOdmUsbChargerType_SK),
+        20,
+        NV_TRUE,
+	NvOdmUsbModeType_Host,
+
+        NvOdmUsbIdPinType_CableId,
+        NvOdmUsbConnectorsMuxType_None,
+        NV_TRUE
+    };
+
 
      static const NvOdmUsbProperty Usb2Property =
      {
@@ -758,8 +771,28 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         NV_TRUE
     };
 
-    if (OdmIoModule == NvOdmIoModule_Usb && Instance == 0)
-        return &(Usb1Property);
+            gpio_request(56, "PWR") ;
+            gpio_direction_input(56) ;
+	    if ((gpio_get_value(56)) == 0)
+		{
+		HostMode = 1;
+		}
+	    else	
+		{	 
+		HostMode = 0;
+		}	
+
+    if (OdmIoModule == NvOdmIoModule_Usb && Instance == 0 && HostMode == 1)
+	{
+	printk(KERN_INFO "BUZZ: Booting Host Mode Stage 1 of 2\n") ;
+        return &(Usb1PropertyHost);
+	}
+
+    if (OdmIoModule == NvOdmIoModule_Usb && Instance == 0 && HostMode == 0)
+	{
+	printk(KERN_INFO "BUZZ: Booting Slave Mode Stage 1 of 2\n") ;
+        return &(Usb1PropertySlave);
+	}
 
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 1)
         return &(Usb2Property);
