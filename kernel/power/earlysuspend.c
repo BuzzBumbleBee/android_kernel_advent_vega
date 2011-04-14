@@ -104,10 +104,6 @@ static void early_suspend(struct work_struct *work)
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("early_suspend: sync\n");
 
-	//Fix To Pwr Up/Down Camera When Sleeping 
-	gpio_set_value(28, 0) ;
-	printk(KERN_INFO "Ant: Camera GPIO going down ! (Bumble-Bee)\n") ;
-
 #ifndef CONFIG_ANT_S3_DISABLE
 	// Ant start
 	// set GPIO_PAA7 to high and EC will know the status is S3

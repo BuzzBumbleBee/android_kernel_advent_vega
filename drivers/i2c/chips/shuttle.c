@@ -666,7 +666,8 @@ static void init_gpio_status(void)
 	printk(KERN_INFO "Ant shuttle module init set GPIO_PAA7 to low\n") ;
 
 	gpio_request(28, "Shuttle_USBCamera") ;
-	gpio_direction_output( 28, 0);
+	gpio_direction_output( 28, 1);
+	gpio_set_value(28, 1) ;
 	printk(KERN_INFO "Ant shuttle module init set GPIO 28 to low\n") ;
 
     //high is (host mode) --- TV_ON(GPIO_PB0 8)
