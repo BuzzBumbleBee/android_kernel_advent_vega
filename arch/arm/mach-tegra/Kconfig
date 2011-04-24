@@ -2,6 +2,11 @@ if ARCH_TEGRA
 
 comment "NVIDIA Tegra options"
 
+config USE_FAKE_SHMOO
+	boolean "Enable 1.4Ghz Overclock"
+	help
+	  Enable Overclock
+
 choice
 	prompt "Select Tegra processor family for target system"
 

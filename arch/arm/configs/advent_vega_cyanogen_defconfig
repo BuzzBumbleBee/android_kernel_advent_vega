@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.39
-# Sun Apr 24 16:07:35 2011
+# Sun Apr 24 22:39:23 2011
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -205,6 +205,7 @@ CONFIG_ARCH_TEGRA=y
 #
 # NVIDIA Tegra options
 #
+CONFIG_USE_FAKE_SHMOO=y
 CONFIG_ARCH_TEGRA_2x_SOC=y
 CONFIG_MACH_TEGRA_GENERIC=y
 CONFIG_MACH_HARMONY=y
@@ -620,13 +621,14 @@ CONFIG_NET_SCH_HTB=y
 #
 # Classification
 #
+CONFIG_NET_CLS=y
 # CONFIG_NET_CLS_BASIC is not set
 # CONFIG_NET_CLS_TCINDEX is not set
 # CONFIG_NET_CLS_ROUTE4 is not set
 # CONFIG_NET_CLS_FW is not set
 # CONFIG_NET_CLS_U32 is not set
-# CONFIG_NET_CLS_RSVP is not set
-# CONFIG_NET_CLS_RSVP6 is not set
+CONFIG_NET_CLS_RSVP=y
+CONFIG_NET_CLS_RSVP6=y
 # CONFIG_NET_CLS_FLOW is not set
 # CONFIG_NET_CLS_CGROUP is not set
 # CONFIG_NET_EMATCH is not set

@@ -57,12 +57,15 @@ static DEFINE_MUTEX(init_mutex);
 
 #ifdef CONFIG_HOTPLUG_CPU
 static int disable_hotplug = 0;
+extern atomic_t hotplug_policy;
 #endif
 
 /*
  * Frequency table index must be sequential starting at 0 and frequencies
  * must be ascending.
  */
+
+#if defined(CONFIG_USE_FAKE_SHMOO)
 static struct cpufreq_frequency_table freq_table[] = {
 	{ 0, 216000 },
 	{ 1, 312000 },
@@ -76,18 +79,20 @@ static struct cpufreq_frequency_table freq_table[] = {
 	{ 9, 1400000 },
 	{ 10, CPUFREQ_TABLE_END },
 };
+#endif
 
 static void tegra_cpufreq_hotplug(NvRmPmRequest req)
 {
 	int rc = 0;
 #ifdef CONFIG_HOTPLUG_CPU
 	unsigned int cpu;
+	int policy = atomic_read(&hotplug_policy);
 
 	smp_rmb();
 	if (disable_hotplug)
 		return;
 
-	if (req & NvRmPmRequest_CpuOnFlag) {
+	if (req & NvRmPmRequest_CpuOnFlag && (policy > 1 || !policy)) {
 		struct cpumask m;
 
 		cpumask_andnot(&m, cpu_present_mask, cpu_online_mask);
@@ -96,7 +101,7 @@ static void tegra_cpufreq_hotplug(NvRmPmRequest req)
 		if (cpu_present(cpu) && !cpu_online(cpu))
 			rc = cpu_up(cpu);
 
-	} else if (req & NvRmPmRequest_CpuOffFlag) {
+	} else if (req & NvRmPmRequest_CpuOffFlag && (policy < NR_CPUS || !policy)) {
 		cpu = cpumask_any_but(cpu_online_mask, 0);
 
 		if (cpu_present(cpu) && cpu_online(cpu))
@@ -190,9 +195,14 @@ static int tegra_cpufreq_dfsd(void *arg)
 
 static int tegra_verify_speed(struct cpufreq_policy *policy)
 {
+#if defined(CONFIG_USE_FAKE_SHMOO)
 	return cpufreq_frequency_table_verify(policy, freq_table);
+#else
+	cpufreq_verify_within_limits(policy, policy->cpuinfo.min_freq,
+	   policy->cpuinfo.max_freq);
+	return 0;
+#endif
 }
-
 static unsigned int tegra_get_speed(unsigned int cpu)
 {
 	unsigned long rate;

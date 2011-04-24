@@ -44,16 +44,15 @@
 #include "ap15/ap15rm_private.h"
 #include "ap15/project_relocation_table.h"
 
-#define USE_FAKE_SHMOO
 
-#ifdef USE_FAKE_SHMOO
+#if defined(CONFIG_USE_FAKE_SHMOO)
 #include <linux/kernel.h>
 
 #define NvRmPrivGetStepMV(hRmDevice, step) \
          (s_ChipFlavor.pSocShmoo->ShmooVoltages[(step)])
 #endif
 
-#ifdef USE_FAKE_SHMOO
+#if defined(CONFIG_USE_FAKE_SHMOO)
 
 #define MAX_OVERCLOCK (1400000)
 #define MAX_VOLTAGE (1200)
@@ -270,7 +269,7 @@ NvRmPrivClockLimitsInit(NvRmDeviceHandle hRmDevice)
 
     // Set upper clock boundaries for devices on CPU bus (CPU, Mselect,
     // CMC) with combined Absolute/Scaled limits
-#ifdef USE_FAKE_SHMOO
+#if defined(CONFIG_USE_FAKE_SHMOO)
       CpuMaxKHz = MAX_OVERCLOCK;
 #else
       CpuMaxKHz = pSKUedLimits->CpuMaxKHz;
@@ -941,7 +940,7 @@ static NvError NvRmBootArgChipShmooGet(
         offset = BootArgSh.CpuShmooVoltagesListOffset;
         size = BootArgSh.CpuShmooVoltagesListSize;
         NV_ASSERT (offset + size <= TotalSize);
-#ifdef USE_FAKE_SHMOO
+#if defined(CONFIG_USE_FAKE_SHMOO)
         s_CpuShmoo.ShmooVoltages = &FakeShmooVoltages[0];
 #else
         s_CpuShmoo.ShmooVoltages =(const NvU32*)((NvUPtr)s_pShmooData + offset);
@@ -949,7 +948,7 @@ static NvError NvRmBootArgChipShmooGet(
         size /= sizeof(*s_CpuShmoo.ShmooVoltages);
         NV_ASSERT((size * sizeof(*s_CpuShmoo.ShmooVoltages) ==
               BootArgSh.CpuShmooVoltagesListSize) && (size > 1));
-#ifdef USE_FAKE_SHMOO
+#if defined(CONFIG_USE_FAKE_SHMOO)
 	s_CpuShmoo.ShmooVmaxIndex = ClockTableLength;
 #else
         s_CpuShmoo.ShmooVmaxIndex = size - 1;
@@ -959,7 +958,7 @@ static NvError NvRmBootArgChipShmooGet(
         offset = BootArgSh.CpuScaledLimitsOffset;
         size = BootArgSh.CpuScaledLimitsSize;
         NV_ASSERT (offset + size <= TotalSize);
-#ifdef USE_FAKE_SHMOO
+#if defined(CONFIG_USE_FAKE_SHMOO)
         s_CpuShmoo.pScaledCpuLimits = &FakepScaledCpuLimits;
 #else
         s_CpuShmoo.pScaledCpuLimits =
